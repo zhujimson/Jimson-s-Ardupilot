@@ -68,7 +68,9 @@ public:
     void set_throttle_mix_max() { _throttle_rpy_mix_desired = _thr_mix_max; }
 
     // get_throttle_rpy_mix - get low throttle compensation value
-    bool is_throttle_mix_min() const { return (_throttle_rpy_mix < 1.25f*_thr_mix_min); }
+    bool is_throttle_mix_min() const {
+        return (_throttle_rpy_mix < 1.55f*_thr_mix_min);    // 默认1.25
+    }   // 默认是0.125倍最小油门
 
     // run lowest level body-frame rate controller and send outputs to the motors
     void rate_controller_run();

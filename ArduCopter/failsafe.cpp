@@ -47,7 +47,9 @@ void Copter::failsafe_check()
         return;
     }
 
-    if (!in_failsafe && failsafe_enabled && tnow - failsafe_last_timestamp > 2000000) {
+    //  在这里进行failsafe的执行判定。
+    if (!in_failsafe && failsafe_enabled && tnow - failsafe_last_timestamp > 2000000)
+    {
         // motors are running but we have gone 2 second since the
         // main loop ran. That means we're in trouble and should
         // disarm the motors.

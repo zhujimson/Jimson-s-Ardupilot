@@ -407,7 +407,7 @@ const AP_Param::GroupInfo NavEKF2::var_info[] = {
     // @Range: 1 127
     // @User: Advanced
     AP_GROUPINFO("IMU_MASK",     33, NavEKF2, _imuMask, 3),
-    
+
     // @Param: CHECK_SCALE
     // @DisplayName: GPS accuracy check scaler (%)
     // @Description: This scales the thresholds that are used to check GPS accuracy before it is used by the EKF. A value of 100 is the default. Values greater than 100 increase and values less than 100 reduce the maximum GPS error the EKF will accept. A value of 200 will double the allowable GPS error.
@@ -520,7 +520,7 @@ NavEKF2::NavEKF2(const AP_AHRS *ahrs, AP_Baro &baro, const RangeFinder &rng) :
     fScaleFactorPnoise(1e-10f),     // Process noise added to focal length scale factor state variance at each time step
     flowTimeDeltaAvg_ms(100),       // average interval between optical flow measurements (msec)
     flowIntervalMax_ms(100),        // maximum allowable time between flow fusion events
-    gndEffectTimeout_ms(1000),      // time in msec that baro ground effect compensation will timeout after initiation
+    gndEffectTimeout_ms(1500),      // 原来默认值是1000，现在改为2000，time in msec that baro ground effect compensation will timeout after initiation
     gndEffectBaroScaler(4.0f),      // scaler applied to the barometer observation variance when operating in ground effect
     gndGradientSigma(50),           // RMS terrain gradient percentage assumed by the terrain height estimation
     fusionTimeStep_ms(10),          // The minimum number of msec between covariance prediction and fusion operations
@@ -574,14 +574,14 @@ bool NavEKF2::InitialiseFilter(void)
     if (dataflash != nullptr) {
         logging.enabled = dataflash->log_replay();
     }
-    
+
     if (core == nullptr) {
 
         // don't run multiple filters for 1 IMU
         const AP_InertialSensor &ins = _ahrs->get_ins();
         uint8_t mask = (1U<<ins.get_accel_count())-1;
         _imuMask.set(_imuMask.get() & mask);
-        
+
         // count IMUs from mask
         num_cores = 0;
         for (uint8_t i=0; i<7; i++) {
@@ -595,7 +595,7 @@ bool NavEKF2::InitialiseFilter(void)
             _enable.set(0);
             return false;
         }
-        
+
         core = new NavEKF2_core[num_cores];
         if (core == nullptr) {
             _enable.set(0);
@@ -641,8 +641,8 @@ void NavEKF2::UpdateFilter(void)
         return;
     }
 
-    imuSampleTime_us = AP_HAL::micros64();
-    
+    imuSampleTime_us = AP_HAL::micros64();  // 得到当前的时间
+
     const AP_InertialSensor &ins = _ahrs->get_ins();
 
     bool statePredictEnabled[num_cores];
@@ -650,11 +650,14 @@ void NavEKF2::UpdateFilter(void)
         // if the previous core has only recently finished a new state prediction cycle, then
         // don't start a new cycle to allow time for fusion operations to complete if the update
         // rate is higher than 200Hz
+        // 如果EKF2的更新周期大于200HZ的话，算法核心又刚刚完成了一次新的状态预测周期，那么可以先
+        // 不开始新的更新周期来留充足的时间完成融合操作
         if ((i > 0) && (core[i-1].getFramesSincePredict() < 2) && (ins.get_sample_rate() > 200)) {
             statePredictEnabled[i] = false;
         } else {
             statePredictEnabled[i] = true;
         }
+        //根据IMU的数目来定core的数量,然后进行EKF预测过程
         core[i].UpdateFilter(statePredictEnabled[i]);
     }
 

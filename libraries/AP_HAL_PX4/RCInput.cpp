@@ -23,7 +23,7 @@ void PX4RCInput::init()
         pthread_mutex_init(&rcin_mutex, NULL);
 }
 
-bool PX4RCInput::new_input() 
+bool PX4RCInput::new_input()
 {
     pthread_mutex_lock(&rcin_mutex);
     bool valid = _rcin.timestamp_last_signal != _last_read || _override_valid;
@@ -33,7 +33,7 @@ bool PX4RCInput::new_input()
     return valid;
 }
 
-uint8_t PX4RCInput::num_channels() 
+uint8_t PX4RCInput::num_channels()
 {
     pthread_mutex_lock(&rcin_mutex);
     uint8_t n = _rcin.channel_count;
@@ -41,7 +41,7 @@ uint8_t PX4RCInput::num_channels()
     return n;
 }
 
-uint16_t PX4RCInput::read(uint8_t ch) 
+uint16_t PX4RCInput::read(uint8_t ch)
 {
 	if (ch >= RC_INPUT_MAX_CHANNELS) {
 		return 0;
@@ -57,11 +57,11 @@ uint16_t PX4RCInput::read(uint8_t ch)
             return 0;
 	}
 	uint16_t v = _rcin.values[ch];
-        pthread_mutex_unlock(&rcin_mutex);
-        return v;
+    pthread_mutex_unlock(&rcin_mutex);
+    return v;
 }
 
-uint8_t PX4RCInput::read(uint16_t* periods, uint8_t len) 
+uint8_t PX4RCInput::read(uint16_t* periods, uint8_t len)
 {
 	if (len > RC_INPUT_MAX_CHANNELS) {
 		len = RC_INPUT_MAX_CHANNELS;
@@ -72,7 +72,7 @@ uint8_t PX4RCInput::read(uint16_t* periods, uint8_t len)
 	return len;
 }
 
-bool PX4RCInput::set_overrides(int16_t *overrides, uint8_t len) 
+bool PX4RCInput::set_overrides(int16_t *overrides, uint8_t len)
 {
 	bool res = false;
 	for (uint8_t i = 0; i < len; i++) {
@@ -112,7 +112,7 @@ void PX4RCInput::_timer_tick(void)
             orb_copy(ORB_ID(input_rc), _rc_sub, &_rcin);
             pthread_mutex_unlock(&rcin_mutex);
 	}
-        // note, we rely on the vehicle code checking new_input() 
+        // note, we rely on the vehicle code checking new_input()
         // and a timeout for the last valid input to handle failsafe
 	perf_end(_perf_rcin);
 }
@@ -127,7 +127,7 @@ bool PX4RCInput::rc_bind(int dsmMode)
         hal.console->printf("RCInput: failed to open /dev/px4io or /dev/px4fmu\n");
         return false;
     }
-    
+
     uint32_t mode = (dsmMode == 0) ? DSM2_BIND_PULSES : ((dsmMode == 1) ? DSMX_BIND_PULSES : DSMX8_BIND_PULSES);
     int ret = ioctl(fd, DSM_BIND_START, mode);
     close(fd);

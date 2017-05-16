@@ -5,6 +5,8 @@
 #include <Filter/Filter.h>
 #include <Filter/DerivativeFilter.h>
 
+#include <../../ArduCopter/APM_Config.h>
+
 // maximum number of sensor instances
 #define BARO_MAX_INSTANCES 3
 
@@ -148,7 +150,7 @@ private:
 
     struct sensor {
         uint32_t last_update_ms;        // last update time in ms
-        bool healthy:1;                 // true if sensor is healthy
+        bool healthy:1;                 // true if sensor is healthy    做了内存长度控制
         bool alt_ok:1;                  // true if calculated altitude is ok
         bool calibrated:1;              // true if calculated calibrated successfully
         float pressure;                 // pressure in Pascal
@@ -156,6 +158,9 @@ private:
         float altitude;                 // calculated altitude
         AP_Float ground_temperature;
         AP_Float ground_pressure;
+#ifdef BARO_LP_FILTER
+        float last_altitude;
+#endif
     } sensors[BARO_MAX_INSTANCES];
 
     AP_Float                            _alt_offset;

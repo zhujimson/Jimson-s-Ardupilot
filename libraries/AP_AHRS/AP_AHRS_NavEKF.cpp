@@ -50,10 +50,10 @@ const Vector3f &AP_AHRS_NavEKF::get_gyro(void) const
 
 const Matrix3f &AP_AHRS_NavEKF::get_rotation_body_to_ned(void) const
 {
-    if (!active_EKF_type()) {
+    if (!active_EKF_type()) {   // 如果没有使用EKF,则使用DCM算法生成的姿态矩阵
         return AP_AHRS_DCM::get_rotation_body_to_ned();
     }
-    return _dcm_matrix;
+    return _dcm_matrix;         // 否则使用EKF2生成的矩阵
 }
 
 const Vector3f &AP_AHRS_NavEKF::get_gyro_drift(void) const
@@ -83,11 +83,11 @@ void AP_AHRS_NavEKF::update(void)
         _ekf_type.set(2);
     }
 #endif
-    update_DCM();
+    update_DCM();   // 这里可以拿到陀螺仪的最初的DCM
 #if AP_AHRS_WITH_EKF1
-    update_EKF1();
+    update_EKF1();  // 而EKF由分为两种，第一种为默认推荐的稳定版代码飞行的，
 #endif
-    update_EKF2();
+    update_EKF2();  // 第二种为git上master的
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     update_SITL();
 #endif
@@ -109,6 +109,7 @@ void AP_AHRS_NavEKF::update_DCM(void)
     AP_AHRS_DCM::update();
 
     // keep DCM attitude available for get_secondary_attitude()
+    // 得到的结果作为第二姿态结果
     _dcm_attitude(roll, pitch, yaw);
 }
 
@@ -188,25 +189,26 @@ void AP_AHRS_NavEKF::update_EKF1(void)
 }
 
 
-void AP_AHRS_NavEKF::update_EKF2(void)
+void AP_AHRS_NavEKF::update_EKF2(void)  // master版（即开发版）实验表明，最后是由这个函数生成的姿态角
 {
-    if (!ekf2_started) {
+    if (!ekf2_started) {    // 如果EKF2没有开始
         // wait 1 second for DCM to output a valid tilt error estimate
         if (start_time_ms == 0) {
             start_time_ms = AP_HAL::millis();
         }
         if (AP_HAL::millis() - start_time_ms > startup_delay_ms || force_ekf) {
-            ekf2_started = EKF2.InitialiseFilter();
+            ekf2_started = EKF2.InitialiseFilter(); // 使用了DCM的_error_rp = 0.8f * _error_rp + 0.2f * best_error;
+                                                    // 来源drift_correction, 所以EKF依赖于DCM
             if (force_ekf) {
                 return;
             }
         }
     }
-    if (ekf2_started) {
-        EKF2.UpdateFilter();
+    if (ekf2_started) {     // 如果EKF2开始了
+        EKF2.UpdateFilter();// 进行预测过程
         if (active_EKF_type() == EKF_TYPE2) {
             Vector3f eulers;
-            EKF2.getRotationBodyToNED(_dcm_matrix);
+            EKF2.getRotationBodyToNED(_dcm_matrix); // 这里的矩阵重新赋值了DCM矩阵，即姿态
             EKF2.getEulerAngles(-1,eulers);
             roll  = eulers.x;
             pitch = eulers.y;
@@ -216,7 +218,7 @@ void AP_AHRS_NavEKF::update_EKF2(void)
             update_trig();
 
             // keep _gyro_bias for get_gyro_drift()
-            _gyro_bias.zero();            
+            _gyro_bias.zero();
             EKF2.getGyroBias(-1,_gyro_bias);
             _gyro_bias = -_gyro_bias;
 
@@ -365,7 +367,7 @@ bool AP_AHRS_NavEKF::get_position(struct Location &loc) const
         return true;
     }
 #endif
-        
+
     default:
         break;
     }
@@ -794,7 +796,7 @@ uint8_t AP_AHRS_NavEKF::ekf_type(void) const
         type = 2;
     }
 #endif
-    
+
     // check for invalid type
 #if CONFIG_HAL_BOARD == HAL_BOARD_SITL
     if (type > 2 && type != EKF_TYPE_SITL) {
@@ -1246,11 +1248,11 @@ void AP_AHRS_NavEKF::send_ekf_status_report(mavlink_channel_t chan)
         mavlink_msg_ekf_status_report_send(chan, 0, 0, 0, 0, 0, 0);
         break;
 #endif
-        
+
     case EKF_TYPE2:
     default:
         return EKF2.send_status_report(chan);
-    }    
+    }
 }
 
 // passes a reference to the location of the inertial navigation origin

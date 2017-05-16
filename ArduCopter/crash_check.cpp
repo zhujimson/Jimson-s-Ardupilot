@@ -10,6 +10,32 @@
 // called at MAIN_LOOP_RATE
 void Copter::crash_check()
 {
+#ifdef  FLYPIE_RC
+    int16_t ChannelYaw      = channel_yaw->get_control_in();    //获取YAW通道的值
+    int16_t ChannelThrottle = channel_throttle->get_control_in();
+    int16_t ChannelRoll     = channel_roll->get_control_in();
+    int16_t ChannelPitch    = channel_pitch->get_control_in();
+    int16_t Channel_6       = g.rc_6.get_radio_in();
+    if (Channel_6 > 1900)
+    {
+        ChannelPitch = -ChannelPitch;
+        ChannelRoll  = -ChannelRoll;
+    }
+
+    static int16_t manual_lock_counter;
+
+    if (ChannelYaw < -3000 && ChannelThrottle < 100 && ChannelRoll > 3000 && ChannelPitch > 3000){  //遥控器精度不够，把阈值降低到3000
+        manual_lock_counter++;
+        hal.console->printf("\n Crash check ");
+        if(manual_lock_counter > 400){  //延迟400循环时间
+            init_disarm_motors();
+            hal.console->printf("\n In manual lock ");
+            return;
+        }
+    }
+    if(!motors.armed()) manual_lock_counter = 0;
+#endif
+
     static uint16_t crash_counter;  // number of iterations vehicle may have been crashed
 
     // return immediately if disarmed, or crash checking disabled
@@ -150,7 +176,7 @@ void Copter::parachute_release()
 }
 
 // parachute_manual_release - trigger the release of the parachute, after performing some checks for pilot error
-//   checks if the vehicle is landed 
+//   checks if the vehicle is landed
 void Copter::parachute_manual_release()
 {
     // exit immediately if parachute is not enabled

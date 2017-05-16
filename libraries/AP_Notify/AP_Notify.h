@@ -18,6 +18,8 @@
 #include <AP_Param/AP_Param.h>
 #include <GCS_MAVLink/GCS_MAVLink.h>
 
+#include <../../ArduCopter/APM_Config.h>
+
 #include "NotifyDevice.h"
 
 
@@ -62,6 +64,9 @@ public:
         uint32_t firmware_update    : 1;    // 1 just before vehicle firmware is updated
         uint32_t compass_cal_running: 1;    // 1 if a compass calibration is running
 
+#ifdef ARM_STATE_CHECK
+        uint32_t ready_to_fly       : 1;
+#endif
         // additional flags
         uint32_t external_leds      : 1;    // 1 if external LEDs are enabled (normally only used for copter)
         uint32_t vehicle_lost       : 1;    // 1 when lost copter tone is requested (normally only used for copter)
@@ -107,7 +112,7 @@ public:
 
     // handle a PLAY_TUNE message
     static void handle_play_tune(mavlink_message_t* msg);
-    
+
     static const struct AP_Param::GroupInfo var_info[];
 
     bool buzzer_enabled() const { return _buzzer_enable; }

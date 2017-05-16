@@ -62,8 +62,9 @@ void Copter::update_ground_effect_detector(void)
     bool slow_descent = (slow_descent_demanded || (z_speed_low && descent_demanded));
 
     gndeffect_state.touchdown_expected = slow_horizontal && slow_descent;
+    //hal.console->printf("\n touchdown flag: %d",gndeffect_state.touchdown_expected);
 
     // Prepare the EKF for ground effect if either takeoff or touchdown is expected.
-    ahrs.setTakeoffExpected(gndeffect_state.takeoff_expected);
-    ahrs.setTouchdownExpected(gndeffect_state.touchdown_expected);
+    ahrs.setTakeoffExpected(gndeffect_state.takeoff_expected);      //在这里进入地面效应的执行以及判断结果
+    ahrs.setTouchdownExpected(gndeffect_state.touchdown_expected);  //在这里进入地面效应的执行以及判断结果
 }

@@ -22,7 +22,7 @@ void Copter::update_land_and_crash_detectors()
 
 #if PARACHUTE == ENABLED
     // check parachute
-    parachute_check();
+    parachute_check();      //判断是否有降落伞
 #endif
 
     crash_check();
@@ -43,17 +43,20 @@ void Copter::update_land_detector()
     if (!motors.armed()) {
         // if disarmed, always landed.
         set_land_complete(true);
-    } else if (ap.land_complete) {
+    }
+    else if (ap.land_complete) {
 #if FRAME_CONFIG == HELI_FRAME
         // if rotor speed and collective pitch are high then clear landing flag
         if (motors.get_throttle() > get_non_takeoff_throttle() && !motors.limit.throttle_lower && motors.rotor_runup_complete()) {
 #else
+
         // if throttle output is high then clear landing flag
         if (motors.get_throttle() > get_non_takeoff_throttle()) {
 #endif
             set_land_complete(false);
         }
-    } else {
+    }
+    else {
 
 #if FRAME_CONFIG == HELI_FRAME
         // check that collective pitch is on lower limit (should be constrained by LAND_COL_MIN)
@@ -61,25 +64,39 @@ void Copter::update_land_detector()
 #else
         // check that the average throttle output is near minimum (less than 12.5% hover throttle)
         bool motor_at_lower_limit = motors.limit.throttle_lower && attitude_control.is_throttle_mix_min();
+        //hal.console->printf("\n throttle_lower : %d",motors.limit.throttle_lower);  //电机转速相关的flag
+        //hal.console->printf("\n is_throttle_mix_min : %d",attitude_control.is_throttle_mix_min());  //
+
 #endif
 
+
         // check that the airframe is not accelerating (not falling or breaking after fast forward flight)
-        bool accel_stationary = (land_accel_ef_filter.get().length() <= LAND_DETECTOR_ACCEL_MAX);
+        bool accel_stationary = (land_accel_ef_filter.get().length() <= LAND_DETECTOR_ACCEL_MAX);   //加速度是否小于1m/s/s，改为2
 
         // check that vertical speed is within 1m/s of zero
-        bool descent_rate_low = fabsf(inertial_nav.get_velocity_z()) < 100;
+        bool descent_rate_low = fabsf(inertial_nav.get_velocity_z()) < 100;     //默认是100，因为着陆速度只有0.5m/s，所以这个是OK的
+        //hal.console->printf("\n vertical speed : %f",fabsf(inertial_nav.get_velocity_z()));
 
         // if we have a healthy rangefinder only allow landing detection below 2 meters
         bool rangefinder_check = (!rangefinder_alt_ok() || rangefinder_state.alt_cm_filt.get() < LAND_RANGEFINDER_MIN_ALT_CM);
 
+        //hal.console->printf("\n rangefinder_check : %d",rangefinder_check);
+        //hal.console->printf("\n motor_at_lower_limit : %d",motor_at_lower_limit);
+        //hal.console->printf("\n accel_stationary : %d",accel_stationary);
+        //hal.console->printf("\n descent_rate_low : %d",descent_rate_low);
+
         if (motor_at_lower_limit && accel_stationary && descent_rate_low && rangefinder_check) {
             // landed criteria met - increment the counter and check if we've triggered
-            if( land_detector_count < ((float)LAND_DETECTOR_TRIGGER_SEC)*scheduler.get_loop_rate_hz()) {
+            if( land_detector_count < ((float)LAND_DETECTOR_TRIGGER_SEC)*scheduler.get_loop_rate_hz()) {    // 默认1秒锁桨，现在是0.2
                 land_detector_count++;
-            } else {
+                //hal.console->printf("\n land_counter++: %d",land_detector_count);
+            }
+            else {
+                //hal.uartE->printf("\n land_end: %d",land_detector_count);
                 set_land_complete(true);
             }
-        } else {
+        }
+        else {
             // we've sensed movement up or down so reset land_detector
             land_detector_count = 0;
         }
@@ -99,7 +116,8 @@ void Copter::set_land_complete(bool b)
 
     if(b){
         Log_Write_Event(DATA_LAND_COMPLETE);
-    } else {
+    }
+    else {
         Log_Write_Event(DATA_NOT_LANDED);
     }
     ap.land_complete = b;

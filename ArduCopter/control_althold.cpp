@@ -19,7 +19,7 @@ bool Copter::althold_init(bool ignore_checks)
     pos_control.set_speed_z(-g.pilot_velocity_z_max, g.pilot_velocity_z_max);
     pos_control.set_accel_z(g.pilot_accel_z);
 
-    // initialise position and desired velocity
+    // initialise position and desired velocity //没有做对XY方向的初始化归0,需要加入XY方向速度的初始化
     if (!pos_control.is_active_z()) {
         pos_control.set_alt_target_to_current_alt();
         pos_control.set_desired_velocity_z(inertial_nav.get_velocity_z());
@@ -54,6 +54,7 @@ void Copter::althold_run()
 
     // get pilot desired climb rate
     float target_climb_rate = get_pilot_desired_climb_rate(channel_throttle->get_control_in());
+
     target_climb_rate = constrain_float(target_climb_rate, -g.pilot_velocity_z_max, g.pilot_velocity_z_max);
 
 #if FRAME_CONFIG == HELI_FRAME
@@ -81,7 +82,7 @@ void Copter::althold_run()
 
         motors.set_desired_spool_state(AP_Motors::DESIRED_SHUT_DOWN);
         attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw(target_roll, target_pitch, target_yaw_rate, get_smoothing_gain());
-#if FRAME_CONFIG == HELI_FRAME    
+#if FRAME_CONFIG == HELI_FRAME
         // force descent rate and call position controller
         pos_control.set_alt_target_from_climb_rate(-abs(g.land_speed), G_Dt, false);
 #else

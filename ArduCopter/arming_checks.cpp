@@ -59,6 +59,7 @@ bool Copter::pre_arm_checks(bool display_failure)
     }
 
     // exit immediately if we've already successfully performed the pre-arm check
+    // 只要开机pre_arm_check成功了，基本上每个循环在这个判断里面就会退出pre_arm_check
     if (ap.pre_arm_check) {
         // run gps checks because results may change and affect LED colour
         // no need to display failures because arm_checks will do that if the pilot tries to arm
@@ -72,7 +73,7 @@ bool Copter::pre_arm_checks(bool display_failure)
         set_pre_arm_rc_check(true);
         return true;
     }
-
+    //开机就执行这个pre_arm_check，过了开机阶段就不会再执行的。
     return barometer_checks(display_failure)
         & rc_calibration_checks(display_failure)
         & compass_checks(display_failure)
@@ -607,6 +608,37 @@ bool Copter::pre_arm_terrain_check(bool display_failure)
 #endif
 }
 
+
+
+//禁飞区还是得重新建一个类才行
+#ifdef NO_FLY_ZONE
+bool Copter::no_fly_zone_checks(bool display_failure)
+{
+    //check no_fly_zone
+    float GPS_latitude = current_loc.lat / pow(10,7);
+    float GPS_longitude = current_loc.lng / pow(10,7);
+
+    //hal.uartE->printf("\n SatCount: %d",gps.num_sats());
+
+    if(gps.num_sats() >= 8){
+        hal.uartE->printf("\n Location latitude: %0.10f",GPS_latitude);
+        hal.uartE->printf("\n Location longtitude: %.10f",GPS_longitude);
+        float No_fly_lat_distance = abs(GPS_latitude - 25.12345)*111;   //1度差不多是111公里
+        float No_fly_lot_distance = abs(GPS_longitude - 113.12345)*111;
+        if(No_fly_lat_distance <= 5 || No_fly_lot_distance <= 5){  //以各机场GPS为中心的5公里范围内禁止起飞
+            if(display_failure){
+                gcs_send_text(MAV_SEVERITY_CRITICAL,"Arm: In no fly zone");
+            }
+            return false;
+        }
+    }
+    return true;
+}
+#endif
+
+
+
+
 // arm_checks - perform final checks before arming
 //  always called just before arming.  Return true if ok to arm
 //  has side-effect that logging is started
@@ -616,6 +648,8 @@ bool Copter::arm_checks(bool display_failure, bool arming_from_gcs)
     // start dataflash
     start_logging();
     #endif
+
+    //hal.uartE->printf("\n Arming_check begin");
 
     // check accels and gyro are healthy
     if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_INS)) {
@@ -710,7 +744,7 @@ bool Copter::arm_checks(bool display_failure, bool arming_from_gcs)
     }
 
     // succeed if arming checks are disabled
-    if (g.arming_check == ARMING_CHECK_NONE) {
+    if (g.arming_check == ARMING_CHECK_NONE) {    //如果屏蔽了armingcheck就从这里退出
         return true;
     }
 
@@ -832,6 +866,148 @@ bool Copter::arm_checks(bool display_failure, bool arming_from_gcs)
         return false;
     }
 
+#ifdef NO_FLY_ZONE
+    no_fly_zone_checks(display_failure);
+#endif
+    //hal.uartE->printf("\n Pass arming checks");
+
     // if we've gotten this far all is ok
     return true;
 }
+
+#ifdef ARM_STATE_CHECK
+// arm_checks - perform final checks before arming
+void Copter::arm_state_checks()
+{
+    AP_Notify::flags.ready_to_fly = false;  //这里增加一个解锁状态的标志位，由于flags结构体是static，因此不需要实例化AP_Notify，可以直接调用
+    bool display_failure = false;
+    bool arming_from_gcs = false;
+    // check accels and gyro are healthy
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_INS)) {
+        //check if accelerometers have calibrated and require reboot
+        if (ins.accel_cal_requires_reboot()) {
+            return;
+        }
+
+        if (!ins.get_accel_health_all()) {
+            return;
+        }
+        if (!ins.get_gyro_health_all()) {
+            return;
+        }
+        // get ekf attitude (if bad, it's usually the gyro biases)
+        if (!pre_arm_ekf_attitude_check()) {
+            return;
+        }
+    }
+
+    // always check if inertial nav has started and is ready
+    if (!ahrs.healthy()) {
+        return;
+    }
+
+    // check compass health
+    if (!compass.healthy()) {
+        return;
+    }
+
+    if (compass.is_calibrating()) {
+        return;
+    }
+
+    //check if compass has calibrated and requires reboot
+    if (compass.compass_cal_requires_reboot()) {
+        return;
+    }
+
+    // always check if the current mode allows arming
+    if (!mode_allows_arming(control_mode, arming_from_gcs)) {
+        return;
+    }
+
+    // always check gps
+    if (!pre_arm_gps_checks(display_failure)) {
+        return;
+    }
+
+    // if we are using motor interlock switch and it's enabled, fail to arm
+    // skip check in Throw mode which takes control of the motor interlock
+    if (ap.using_interlock && motors.get_interlock()) {
+        return;
+    }
+
+    // if we are not using Emergency Stop switch option, force Estop false to ensure motors
+    // can run normally
+    if (!check_if_auxsw_mode_used(AUXSW_MOTOR_ESTOP)){
+        set_motor_emergency_stop(false);
+        // if we are using motor Estop switch, it must not be in Estop position
+    } else if (check_if_auxsw_mode_used(AUXSW_MOTOR_ESTOP) && ap.motor_emergency_stop){
+        return;
+    }
+
+    // baro checks
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_BARO)) {
+        // baro health check
+        if (!barometer.all_healthy()) {
+            return;
+        }
+        // Check baro & inav alt are within 1m if EKF is operating in an absolute position mode.
+        // Do not check if intending to operate in a ground relative height mode as EKF will output a ground relative height
+        // that may differ from the baro height due to baro drift.
+        nav_filter_status filt_status = inertial_nav.get_filter_status();
+        bool using_baro_ref = (!filt_status.flags.pred_horiz_pos_rel && filt_status.flags.pred_horiz_pos_abs);
+        if (using_baro_ref && (fabsf(inertial_nav.get_altitude() - baro_alt) > PREARM_MAX_ALT_DISPARITY_CM)) {
+            return;
+        }
+    }
+
+    #if AC_FENCE == ENABLED
+    // check vehicle is within fence
+    if (!fence.pre_arm_check()) {
+        return;
+    }
+    #endif
+
+    // check lean angle //起飞后关闭
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_INS)) {
+        if (degrees(acosf(ahrs.cos_roll()*ahrs.cos_pitch()))*100.0f > aparm.angle_max) {
+            return;
+        }
+    }
+
+    // check battery voltage
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_VOLTAGE)) {
+        if (failsafe.battery || (!ap.usb_connected && battery.exhausted(g.fs_batt_voltage, g.fs_batt_mah))) {
+            return;
+        }
+    }
+
+    // check for missing terrain data
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_PARAMETERS)) {
+        if (!pre_arm_terrain_check(display_failure)) {
+            return;
+        }
+    }
+
+    // check adsb
+    if ((g.arming_check == ARMING_CHECK_ALL) || (g.arming_check & ARMING_CHECK_PARAMETERS)) {
+        if (failsafe.adsb) {
+            return;
+        }
+    }
+
+    // check if safety switch has been pushed
+    if (hal.util->safety_switch_state() == AP_HAL::Util::SAFETY_DISARMED) {
+        return;
+    }
+
+#ifdef NO_FLY_ZONE
+    no_fly_zone_checks(display_failure);
+#endif
+
+    AP_Notify::flags.ready_to_fly = true;
+    // if we've gotten this far all is ok
+    return;
+}
+
+#endif

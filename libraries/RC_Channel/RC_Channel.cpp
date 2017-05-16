@@ -19,12 +19,12 @@
  *
  */
 
+
 #include <stdlib.h>
 #include <cmath>
 
 #include <AP_HAL/AP_HAL.h>
 extern const AP_HAL::HAL& hal;
-
 #include <AP_Math/AP_Math.h>
 
 #include "RC_Channel.h"
@@ -32,6 +32,21 @@ extern const AP_HAL::HAL& hal;
 /// global array with pointers to all APM RC channels, will be used by AP_Mount
 /// and AP_Camera classes / It points to RC input channels.
 RC_Channel *RC_Channel::_rc_ch[RC_MAX_CHANNELS];
+
+#ifdef  BRUSH_GIMBAL
+const float GIMBAL_CONTROL_SPEED1   = 0.02;
+const float GIMBAL_CONTROL_SPEED2   = 0.5;
+
+const int GIMBAL_BLIND_UPPER_BOUND = 1600;
+const int GIMBAL_BLIND_LOWER_BOUND = 1400;
+const int GIMBAL_CONTROL_MID = 1500;
+const int GIMBAL_CONTROL_UPPER_BOUND = 2000;
+const int GIMBAL_CONTROL_LOWER_BOUND = 1000;
+const int GIMBAL_CONTROL_BLIND_RANGE = 50;
+
+int16_t RC_Channel::_new_value = 0;
+int16_t RC_Channel::_last_read = 1500;
+#endif
 
 const AP_Param::GroupInfo RC_Channel::var_info[] = {
     // @Param: MIN
@@ -83,6 +98,8 @@ const AP_Param::GroupInfo RC_Channel::var_info[] = {
 
     AP_GROUPEND
 };
+
+
 
 // setup the control preferences
 void
@@ -181,7 +198,7 @@ RC_Channel::trim()
 void
 RC_Channel::set_pwm(int16_t pwm)
 {
-    _radio_in = pwm;
+    _radio_in = pwm;    // 在这里遥控PWM值设进去
 
     if (_type_in == RC_CHANNEL_TYPE_RANGE) {
         _control_in = pwm_to_range();
@@ -192,19 +209,53 @@ RC_Channel::set_pwm(int16_t pwm)
 }
 
 /*
-  call read() and set_pwm() on all channels
+  call read() and set_pwm() on all channels 100Hz
  */
 void
-RC_Channel::set_pwm_all(void)
+RC_Channel::set_pwm_all(void)   //是一个static函数
 {
     for (uint8_t i=0; i<RC_MAX_CHANNELS; i++) {
         if (_rc_ch[i] != NULL) {
-            _rc_ch[i]->set_pwm(_rc_ch[i]->read());
+#ifdef  BRUSH_GIMBAL
+            if(i == 6){
+                uint16_t tem_rc_read = _rc_ch[i]->read();   //读取一个暂存值
+                if(tem_rc_read < GIMBAL_BLIND_UPPER_BOUND && tem_rc_read > GIMBAL_BLIND_LOWER_BOUND)  _rc_ch[i]->set_pwm(_last_read);    //设置了100左右的遥控虚位
+                else{
+                    //hal.console->printf("\n new value :%d",tem_rc_read);
+                    if(tem_rc_read > GIMBAL_CONTROL_MID){       //利用低通进行角度给定的速度快慢控制
+                        if(tem_rc_read >= (GIMBAL_CONTROL_UPPER_BOUND - GIMBAL_CONTROL_BLIND_RANGE)){
+                            _new_value = _last_read + GIMBAL_CONTROL_SPEED2 * (tem_rc_read - GIMBAL_CONTROL_MID);
+                        }
+                        else{
+                            _new_value = _last_read + GIMBAL_CONTROL_SPEED1 * (tem_rc_read - GIMBAL_CONTROL_MID);
+                        }
+                    }
+                    else if(tem_rc_read < GIMBAL_CONTROL_MID){
+                        if(tem_rc_read <= (GIMBAL_CONTROL_LOWER_BOUND + GIMBAL_CONTROL_BLIND_RANGE)){
+                            _new_value = _last_read - GIMBAL_CONTROL_SPEED2 * abs(tem_rc_read - GIMBAL_CONTROL_MID);
+                        }
+                        else{
+                            _new_value = _last_read - GIMBAL_CONTROL_SPEED1 * abs(tem_rc_read - GIMBAL_CONTROL_MID);
+                        }
+                    }
+                    _new_value = constrain_int16(_new_value, GIMBAL_CONTROL_LOWER_BOUND, GIMBAL_CONTROL_UPPER_BOUND);
+                    _rc_ch[i]->set_pwm(_new_value);
+
+                    hal.console->printf("\n ch 7 radio :%d",_rc_ch[i]->get_radio_in());
+                    _last_read = _new_value;
+                }
+            }
+            else{
+                _rc_ch[i]->set_pwm(_rc_ch[i]->read());
+            }
+#else
+                _rc_ch[i]->set_pwm(_rc_ch[i]->read());
+#endif
         }
     }
 }
 
-// read input from APM_RC - create a control_in value, but use a 
+// read input from APM_RC - create a control_in value, but use a
 // zero value for the dead zone. When done this way the control_in
 // value can be used as servo_out to give the same output as input
 void

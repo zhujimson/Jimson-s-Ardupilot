@@ -16,8 +16,8 @@
  *  ArduCopter Version 3.0
  *  Creator:        Jason Short
  *  Lead Developer: Randy Mackay
- *  Lead Tester:    Marco Robustini 
- *  Based on code and ideas from the Arducopter team: Leonard Hall, Andrew Tridgell, Robert Lefebvre, Pat Hickey, Michael Oborne, Jani Hirvinen, 
+ *  Lead Tester:    Marco Robustini
+ *  Based on code and ideas from the Arducopter team: Leonard Hall, Andrew Tridgell, Robert Lefebvre, Pat Hickey, Michael Oborne, Jani Hirvinen,
                                                       Olivier Adler, Kevin Hester, Arthur Benemann, Jonathan Challinger, John Arne Birkeland,
                                                       Jean-Louis Naudin, Mike Smith, and more
  *  Thanks to:	Chris Anderson, Jordi Munoz, Jason Short, Doug Weibel, Jose Julio
@@ -90,6 +90,9 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(update_batt_compass,   10,    120),
     SCHED_TASK(read_aux_switches,     10,     50),
     SCHED_TASK(arm_motors_check,      10,     50),
+#ifdef ARM_STATE_CHECK
+    SCHED_TASK(arm_state_checks,       1,     50),
+#endif
     SCHED_TASK(auto_disarm_check,     10,     50),
     SCHED_TASK(auto_trim,             10,     75),
     SCHED_TASK(read_rangefinder,      20,    100),
@@ -111,10 +114,10 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
     SCHED_TASK(ekf_check,             10,     75),
     SCHED_TASK(landinggear_update,    10,     75),
     SCHED_TASK(lost_vehicle_check,    10,     50),
-    SCHED_TASK(gcs_check_input,      400,    180),
+    SCHED_TASK(gcs_check_input,       10,    180),   //默认是400
     SCHED_TASK(gcs_send_heartbeat,     1,    110),
     SCHED_TASK(gcs_send_deferred,     50,    550),
-    SCHED_TASK(gcs_data_stream_send,  50,    550),
+    SCHED_TASK(gcs_data_stream_send,  50,    550),  //  飞拍的WIFI只允许低于5Hz的速度接收
     SCHED_TASK(update_mount,          50,     75),
     SCHED_TASK(update_trigger,        50,     75),
     SCHED_TASK(ten_hz_logging_loop,   10,    350),
@@ -154,7 +157,7 @@ const AP_Scheduler::Task Copter::scheduler_tasks[] = {
 };
 
 
-void Copter::setup() 
+void Copter::setup()
 {
     cliSerial = hal.console;
 
@@ -247,11 +250,12 @@ void Copter::fast_loop()
 
     // IMU DCM Algorithm
     // --------------------
+    // 直接从传感器拿数据进行姿态解算DCM得到三轴欧拉角以及三轴加速度(大地坐标系下)
     read_AHRS();
 
     // run low level rate controllers that only require IMU data
     attitude_control.rate_controller_run();
-    
+
 #if FRAME_CONFIG == HELI_FRAME
     update_heli_control_dynamics();
 #endif //HELI_FRAME
@@ -261,6 +265,7 @@ void Copter::fast_loop()
 
     // Inertial Nav
     // --------------------
+    // 从传感器拿数据经过EKF进行融合滤波
     read_inertia();
 
     // check if ekf has reset target heading or position
@@ -338,7 +343,7 @@ void Copter::update_trigger(void)
         if (should_log(MASK_LOG_CAMERA)) {
             DataFlash.Log_Write_Camera(ahrs, gps, current_loc);
         }
-    }    
+    }
 #endif
 }
 
@@ -611,7 +616,7 @@ void Copter::read_AHRS(void)
     // update hil before ahrs update
     gcs_check_input();
 #endif
-
+    // 这里的ahrs调用的是Copter.h里面定义的AP_AHRS_NavEKF ahrs里的update.
     ahrs.update();
 }
 
@@ -627,4 +632,4 @@ void Copter::update_altitude()
     }
 }
 
-AP_HAL_MAIN_CALLBACKS(&copter);
+AP_HAL_MAIN_CALLBACKS(&copter);     //在rc.APM里启动Ardupilot_main

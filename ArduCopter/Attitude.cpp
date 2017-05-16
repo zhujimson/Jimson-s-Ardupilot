@@ -1,5 +1,6 @@
 #include "Copter.h"
 
+
 // get_smoothing_gain - returns smoothing gain to be passed into attitude_control.input_euler_angle_roll_pitch_euler_rate_yaw
 //      result is a number from 2 to 12 with 2 being very sluggish and 12 being very crisp
 float Copter::get_smoothing_gain()
@@ -179,6 +180,8 @@ float Copter::get_pilot_desired_throttle(int16_t throttle_control, float thr_mid
 
 // get_pilot_desired_climb_rate - transform pilot's throttle input to climb rate in cm/s
 // without any deadzone at the bottom
+
+//可以在这里限制高度较低的时候用户降落过猛，进行限速
 float Copter::get_pilot_desired_climb_rate(float throttle_control)
 {
     // throttle failsafe check
@@ -212,6 +215,24 @@ float Copter::get_pilot_desired_climb_rate(float throttle_control)
     // desired climb rate for logging
     desired_climb_rate = desired_rate;
 
+    //float printf_attitude = current_loc.alt / pow(10,2);
+    //hal.console->printf("\n Attitude: %f",printf_attitude);
+    //hal.console->printf("\n Attitude: %f",printf_attitude);
+    //hal.console->printf("\n Cuttent Attitude: %d",current_loc.alt);
+    //hal.console->printf("\n Cuttent Attitude: %d",current_loc.alt);
+#ifdef  MANUAL_LAND_SPEED_LIMIT
+    if(fabsf(inertial_nav.get_velocity_z()) < 20.0f && baro_alt < -70){   // 如果已经落地，允许电机速度快速下降，大四轴的话这个值需要增加(30)，同时需要调节下降速度允许值匹配
+        desired_rate = constrain_float(desired_rate,-400,200);    //全参表默认最大是400
+    }
+    else if(current_loc.alt <= 350 ){   //如果高度低于350cm的时候，降落速度限制在-40cm/s以内
+        desired_rate = constrain_float(desired_rate,-40,200);
+    }
+    else if(current_loc.alt > 350){
+        desired_rate = constrain_float(desired_rate,-250,300);
+    }
+    //hal.console->printf("\n MANUAL");
+#endif
+    //hal.console->printf("\n Althold desired_rate : %f",desired_rate);
     return desired_rate;
 }
 

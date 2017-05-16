@@ -16,6 +16,9 @@
 #include <AP_Avoidance/AP_Avoidance.h>
 #include <AP_HAL/utility/RingBuffer.h>
 
+#include <../../ArduCopter/APM_Config.h>
+
+
 // check if a message will fit in the payload space available
 #define HAVE_PAYLOAD_SPACE(chan, id) (comm_get_txspace(chan) >= GCS_MAVLINK::packet_overhead_chan(chan)+MAVLINK_MSG_ID_ ## id ## _LEN)
 #define CHECK_PAYLOAD_SIZE(id) if (comm_get_txspace(chan) < packet_overhead()+MAVLINK_MSG_ID_ ## id ## _LEN) return false
@@ -75,6 +78,9 @@ enum ap_message {
     MSG_MISSION_ITEM_REACHED,
     MSG_POSITION_TARGET_GLOBAL_INT,
     MSG_ADSB_VEHICLE,
+#ifdef  SMBUS_BMSPOW
+    MSG_BATTERY_STATUS,
+#endif
     MSG_RETRY_DEFERRED // this must be last
 };
 
@@ -150,6 +156,10 @@ public:
     // common send functions
     void send_meminfo(void);
     void send_power_status(void);
+#ifdef SMBUS_BMSPOW
+    bool send_battery_status(const AP_BattMonitor &battery) const;
+    void send_battery_status(const AP_BattMonitor &battery, const uint8_t instance) const;
+#endif
     void send_ahrs2(AP_AHRS &ahrs);
     bool send_gps_raw(AP_GPS &gps);
     void send_system_time(AP_GPS &gps);
@@ -172,7 +182,7 @@ public:
     static void send_collision_all(const AP_Avoidance::Obstacle &threat, MAV_COLLISION_ACTION behaviour);
 
     // return a bitmap of active channels. Used by libraries to loop
-    // over active channels to send to all active channels    
+    // over active channels to send to all active channels
     static uint8_t active_channel_mask(void) { return mavlink_active; }
 
     /*
@@ -186,18 +196,18 @@ public:
 
     // send a PARAM_VALUE message to all active MAVLink connections.
     static void send_parameter_value_all(const char *param_name, ap_var_type param_type, float param_value);
-    
+
     /*
       send a MAVLink message to all components with this vehicle's system id
       This is a no-op if no routes to components have been learned
     */
     static void send_to_components(const mavlink_message_t* msg) { routing.send_to_components(msg); }
-    
+
     /*
       allow forwarding of packets / heartbeats to be blocked as required by some components to reduce traffic
     */
     static void disable_channel_routing(mavlink_channel_t chan) { routing.no_route_mask |= (1U<<(chan-MAVLINK_COMM_0)); }
-    
+
     /*
       search for a component in the routing table with given mav_type and retrieve it's sysid, compid and channel
       returns if a matching component is found
@@ -226,7 +236,7 @@ protected:
     // overridable method to check for packet acceptance. Allows for
     // enforcement of GCS sysid
     virtual bool accept_packet(const mavlink_status_t &status, mavlink_message_t &msg) { return true; }
-    
+
     bool            waypoint_receiving; // currently receiving
     // the following two variables are only here because of Tracker
     uint16_t        waypoint_request_i; // request index
@@ -358,7 +368,7 @@ private:
 
     // time when we missed sending a parameter for GCS
     static uint32_t reserve_param_space_start_ms;
-    
+
     // bitmask of what mavlink channels are active
     static uint8_t mavlink_active;
 
@@ -398,7 +408,7 @@ private:
     mavlink_signing_t signing;
     static mavlink_signing_streams_t signing_streams;
     static uint32_t last_signing_save_ms;
-    
+
     static StorageAccess _signing_storage;
     static bool signing_key_save(const struct SigningKey &key);
     static bool signing_key_load(struct SigningKey &key);

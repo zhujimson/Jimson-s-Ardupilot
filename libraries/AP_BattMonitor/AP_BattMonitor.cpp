@@ -4,6 +4,9 @@
 #include "AP_BattMonitor_Bebop.h"
 #include <AP_Vehicle/AP_Vehicle_Type.h>
 
+#include <../../ArduCopter/APM_Config.h>
+
+
 extern const AP_HAL::HAL& hal;
 
 const AP_Param::GroupInfo AP_BattMonitor::var_info[] = {
@@ -162,6 +165,10 @@ AP_BattMonitor::init()
 
     // create each instance
     for (uint8_t instance=0; instance<AP_BATT_MONITOR_MAX_INSTANCES; instance++) {
+#ifdef SMBUS_BMSPOW
+        // clear out the cell voltages
+        memset(&state[instance].cell_voltage, 0xFF, sizeof(cells)); //结构体参数初始化
+#endif
         uint8_t monitor_type = _monitoring[instance];
         switch (monitor_type) {
             case BattMonitor_TYPE_ANALOG_VOLTAGE_ONLY:
@@ -234,6 +241,7 @@ bool AP_BattMonitor::has_current(uint8_t instance) const
 float AP_BattMonitor::voltage(uint8_t instance) const
 {
     if (instance < _num_instances) {
+
         return _BattMonitor_STATE(instance).voltage;
     } else {
         return 0.0f;
@@ -262,6 +270,7 @@ float AP_BattMonitor::current_total_mah(uint8_t instance) const {
 uint8_t AP_BattMonitor::capacity_remaining_pct(uint8_t instance) const
 {
     if (instance < _num_instances && drivers[instance] != NULL) {
+        //hal.console->printf("\n capacity: %d%%",drivers[instance]->capacity_remaining_pct());
         return drivers[instance]->capacity_remaining_pct();
     } else {
         return 0;
@@ -277,7 +286,7 @@ uint8_t AP_BattMonitor::capacity_remaining_pct(uint8_t instance) const
         return 0;
     }
  }
- 
+
  /// exhausted - returns true if the voltage remains below the low_voltage for 10 seconds or remaining capacity falls below min_capacity_mah
 bool AP_BattMonitor::exhausted(uint8_t instance, float low_voltage, float min_capacity_mah)
 {
@@ -330,4 +339,58 @@ bool AP_BattMonitor::overpower_detected(uint8_t instance) const
     return false;
 #endif
 }
+
+#ifdef  SMBUS_BMSPOW
+//remaining mAh
+float AP_BattMonitor::get_remaining_mah(uint8_t instance) const
+{
+    if (instance < _num_instances) {
+        return _BattMonitor_STATE(instance).remaining_mah;
+    } else {
+        return 0.0f;    // 不能用const描述数值返回
+    }
+}
+
+//Full charge mAh
+float AP_BattMonitor::get_full_charge_mah(uint8_t instance) const
+{
+    if (instance < _num_instances) {
+        return _BattMonitor_STATE(instance).full_charge_mah;
+    } else {
+        return 0.0f;    // 不能用const描述数值返回
+    }
+}
+
+// Cycly Count
+float AP_BattMonitor::get_cycle_count(uint8_t instance) const
+{
+    if (instance < _num_instances) {
+        return _BattMonitor_STATE(instance).batt_cycle_count;
+    } else {
+        return 0.0f;    // 不能用const描述数值返回
+    }
+}
+
+// 还有一个默认返回温度的函数在.h文件里面
+/// temperature
+float AP_BattMonitor::get_temperature(uint8_t instance) const
+{
+    if (instance < _num_instances) {
+        return _BattMonitor_STATE(instance).temperature;
+    } else {
+        return 0.0f;    // 不能用const描述数值返回
+    }
+}
+// return the current cell voltages, returns the first monitor instances cells if the instance is out of range
+
+const AP_BattMonitor::cells & AP_BattMonitor::get_cell_voltage(const uint8_t instance) const
+{
+    if (instance < _num_instances) {
+        return _BattMonitor_STATE(AP_BATT_PRIMARY_INSTANCE).cell_voltage;    //默认的返回
+    } else {
+        return _BattMonitor_STATE(instance).cell_voltage;
+    }
+}
+#endif
+
 

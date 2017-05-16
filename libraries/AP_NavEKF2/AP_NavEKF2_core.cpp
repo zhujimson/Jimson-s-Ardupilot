@@ -76,7 +76,7 @@ bool NavEKF2_core::setup_core(NavEKF2 *_frontend, uint8_t _imu_index, uint8_t _c
     }
     if(!storedBaro.init(OBS_BUFFER_LENGTH)) {
         return false;
-    } 
+    }
     if(!storedTAS.init(OBS_BUFFER_LENGTH)) {
         return false;
     }
@@ -95,7 +95,7 @@ bool NavEKF2_core::setup_core(NavEKF2 *_frontend, uint8_t _imu_index, uint8_t _c
 
     return true;
 }
-    
+
 
 /********************************************************
 *                   INIT FUNCTIONS                      *
@@ -348,6 +348,7 @@ bool NavEKF2_core::InitialiseFilterBootstrap(void)
     ResetHeight();
 
     // define Earth rotation vector in the NED navigation frame
+    // 定义在NED坐标系下的地球自转的向量
     calcEarthRateNED(earthRateNED, _ahrs->get_home().lat);
 
     // initialise the covariance matrix
@@ -420,9 +421,10 @@ void NavEKF2_core::CovarianceInit()
 void NavEKF2_core::UpdateFilter(bool predict)
 {
     // Set the flag to indicate to the filter that the front-end has given permission for a new state prediction cycle to be started
-    startPredictEnabled = predict;
+    startPredictEnabled = predict;       //把周期开始的flag带进来
 
     // don't run filter updates if states have not been initialised
+    // 状态没有初始化成功的话就不跑滤波更新的代码
     if (!statesInitialised) {
         return;
     }
@@ -442,26 +444,37 @@ void NavEKF2_core::UpdateFilter(bool predict)
     controlFilterModes();
 
     // read IMU data as delta angles and velocities
+    // 读取IMU加速计和陀螺仪得到的数据
     readIMUData();
 
     // Run the EKF equations to estimate at the fusion time horizon if new IMU data is available in the buffer
+    // 如果新的IMU数据有了，那就run EKF核心方程程序
     if (runUpdates) {
         // Predict states using IMU data from the delayed time horizon
+        // 用IMU数据来进行状态更新预测过程
         UpdateStrapdownEquationsNED();
 
         // Predict the covariance growth
+        // 更新预测过程的协方差矩阵P
         CovariancePrediction();
 
+
+
+
         // Update states using  magnetometer data
+        // 用compass的数据进行状态预估
         SelectMagFusion();
 
         // Update states using GPS and altimeter data
+        // 用GPS和气压计的数据进行状态预估
         SelectVelPosFusion();
 
         // Update states using optical flow data
+        // 用光流的数据进行状态预估
         SelectFlowFusion();
 
         // Update states using airspeed data
+        // 用空速计的数据进行状态预估
         SelectTasFusion();
 
         // Update states using sideslip constraint assumption for fly-forward vehicles
@@ -507,6 +520,7 @@ void NavEKF2_core::UpdateStrapdownEquationsNED()
     // the delta angle rotation quaternion and normalise
     // apply correction for earth's rotation rate
     // % * - and + operators have been overloaded
+
     stateStruct.quat.rotate(delAngCorrected - prevTnb * earthRateNED*imuDataDelayed.delAngDT);
     stateStruct.quat.normalize();
 

@@ -67,7 +67,7 @@ void Copter::get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, in
         roll_in *= ratio;
         pitch_in *= ratio;
     }
-    
+
     // calculate roll, pitch rate requests
     if (g.acro_rp_expo <= 0) {
         rate_bf_request.x = roll_in * g.acro_rp_p;
@@ -99,6 +99,7 @@ void Copter::get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, in
 
     // calculate earth frame rate corrections to pull the copter back to level while in ACRO mode
 
+
     if (g.acro_trainer != ACRO_TRAINER_DISABLED) {
         // Calculate trainer mode earth frame rate command for roll
         int32_t roll_angle = wrap_180_cd(ahrs.roll_sensor);
@@ -128,6 +129,9 @@ void Copter::get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, in
 
         // convert earth-frame level rates to body-frame level rates
         attitude_control.euler_rate_to_ang_vel(attitude_control.get_att_target_euler_cd()*radians(0.01f), rate_ef_level, rate_bf_level);
+
+        //hal.console->printf("\n X_BAL = %f",rate_bf_level.x);
+        //hal.console->printf("\n Y_BAL = %f",rate_bf_level.y);
 
         // combine earth frame rate corrections with rate requests
         if (g.acro_trainer == ACRO_TRAINER_LIMITED) {
@@ -161,4 +165,7 @@ void Copter::get_pilot_desired_angle_rates(int16_t roll_in, int16_t pitch_in, in
     roll_out = rate_bf_request.x;
     pitch_out = rate_bf_request.y;
     yaw_out = rate_bf_request.z;
+
+
+
 }

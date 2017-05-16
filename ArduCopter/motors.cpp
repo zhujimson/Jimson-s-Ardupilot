@@ -1,7 +1,7 @@
 #include "Copter.h"
 
-#define ARM_DELAY               20  // called at 10hz so 2 seconds
-#define DISARM_DELAY            20  // called at 10hz so 2 seconds
+#define ARM_DELAY               2  // called at 10hz so 2 seconds   修改为0.2s
+#define DISARM_DELAY            2  // called at 10hz so 2 seconds   修改为0.5s
 #define AUTO_TRIM_DELAY         100 // called at 10hz so 10 seconds
 #define LOST_VEHICLE_DELAY      10  // called at 10hz so 1 second
 
@@ -9,43 +9,84 @@ static uint32_t auto_disarm_begin;
 
 // arm_motors_check - checks for pilot input to arm or disarm the copter
 // called at 10hz
+
+//如果有其他改变比较大的解锁方式其实应该新增一个method
 void Copter::arm_motors_check()
 {
-    static int16_t arming_counter;
+    static int16_t arming_counter;  //static的计数器默认初始值为0
 
-    // ensure throttle is down
-    if (channel_throttle->get_control_in() > 0) {
+    // ensure throttle is down  //检查油门值是否最低,不在最低的话就不进行解锁或者上锁
+    // 1、可以通过判断高度在正负半米之内进行替换该计数器方案(假如有超声波)，但是这种方式不可靠
+    // 2、或者需要直接把计数器这一块进行重做
+    if (channel_throttle->get_control_in() > 50){       //由于遥控器精度不高，把0改为50
+        //hal.console->printf("\n throttle is not zero : %d",channel_throttle->get_control_in());
         arming_counter = 0;
         return;
     }
 
-    int16_t tmp = channel_yaw->get_control_in();
+#ifdef  FLYPIE_RC//飞拍公司解锁方式
+    int16_t ChannelYaw      = channel_yaw->get_control_in();    //获取YAW通道的值
+    int16_t ChannelThrottle = channel_throttle->get_control_in();
+    int16_t ChannelRoll     = channel_roll->get_control_in();
+    int16_t ChannelPitch    = channel_pitch->get_control_in();
+    int16_t Channel_6       = g.rc_6.get_radio_in();
+    //hal.console->printf("\n ChannelYaw is %d",ChannelYaw);
+    //hal.console->printf("\n ChannelThrottle is %d",ChannelThrottle);
+    //hal.console->printf("\n ChannelRoll is %d",ChannelRoll);
+    //hal.console->printf("\n ChannelPitch is %d",ChannelPitch);
+    //hal.console->printf("\n Channel_6 is %d",Channel_6);
 
-    // full right
-    if (tmp > 4000) {
+    if (Channel_6 > 1900)
+    {
+        ChannelPitch = -ChannelPitch;
+        ChannelRoll  = -ChannelRoll;
+    }
 
+    if (ChannelYaw > 3000 && ChannelRoll < -3000 && ChannelPitch > 3000)
+#elif  ZHUJIMSON_RC     //自定义解锁方式
+    int16_t channel_8 =  g.rc_8.get_radio_in();
+    hal.console->printf("\n channel_8 is %d",channel_8);
+    if (channel_8 > 1500)
+#else
+    // full right   官方解锁方式，如果YAW通道在最右边即最大的时候
+    int16_t tmp = channel_yaw->get_control_in();    //获取YAW通道的值
+    //hal.console->printf("\n tmp is %d",tmp);
+    if (tmp > 4000)
+#endif
+    {
         // increase the arming counter to a maximum of 1 beyond the auto trim counter
         if( arming_counter <= AUTO_TRIM_DELAY ) {
             arming_counter++;
         }
-
-        // arm the motors and configure for flight
+        // 根据上面的counter累加优先进入了一般模式的解锁
+        // arm the motors and configure for flight  //一般模式解锁
         if (arming_counter == ARM_DELAY && !motors.armed()) {
+            hal.console->printf("\n Normal Armed");
             // reset arming counter if arming fail
             if (!init_arm_motors(false)) {
                 arming_counter = 0;
             }
         }
 
-        // arm the motors and configure for flight
+        // arm the motors and configure for flight  //防止自动锁桨不会那么快执行
         if (arming_counter == AUTO_TRIM_DELAY && motors.armed() && control_mode == STABILIZE) {
             auto_trim_counter = 250;
             // ensure auto-disarm doesn't trigger immediately
             auto_disarm_begin = millis();
         }
+    }
 
-    // full left
-    }else if (tmp < -4000) {
+
+#ifdef FLYPIE_RC
+    else if (ChannelThrottle < 100)  //油门下拉锁桨
+
+#elif ZHUJIMSON_RC
+    else if (channel_8 < 1500)  //八通道锁桨
+#else
+    // full left    在最左边即最小值
+    else if (tmp < -4000)
+#endif
+    {
         if (!mode_has_manual_throttle(control_mode) && !ap.land_complete) {
             arming_counter = 0;
             return;
@@ -56,13 +97,16 @@ void Copter::arm_motors_check()
             arming_counter++;
         }
 
-        // disarm the motors
+        // disarm the motors    //上锁
         if (arming_counter == DISARM_DELAY && motors.armed()) {
             init_disarm_motors();
+            init_barometer(true);   //在这里重新校准气压计，在电机锁桨以后
+            hal.console->printf("\n DisArmed");
         }
 
     // Yaw is centered so reset arming counter
-    }else{
+    }
+    else{
         arming_counter = 0;
     }
 }
@@ -209,7 +253,7 @@ bool Copter::init_arm_motors(bool arming_from_gcs)
     arm_time_ms = millis();
 
     // Start the arming delay
-    ap.in_arming_delay = true;
+    ap.in_arming_delay = false;
 
     // return success
     return true;
@@ -265,13 +309,14 @@ void Copter::init_disarm_motors()
     hal.util->set_soft_armed(false);
 
     ap.in_arming_delay = false;
+
 }
 
 // motors_output - send output to motors library which will adjust and send to ESCs and servos
 void Copter::motors_output()
 {
 #if ADVANCED_FAILSAFE == ENABLED
-    // this is to allow the failsafe module to deliberately crash 
+    // this is to allow the failsafe module to deliberately crash
     // the vehicle. Only used in extreme circumstances to meet the
     // OBC rules
     if (g2.afs.should_crash_vehicle()) {
@@ -288,7 +333,8 @@ void Copter::motors_output()
     // check if we are performing the motor test
     if (ap.motor_test) {
         motor_test_output();
-    } else {
+    }
+    else {
         bool interlock = motors.armed() && !ap.in_arming_delay && (!ap.using_interlock || ap.motor_interlock_switch) && !ap.motor_emergency_stop;
         if (!motors.get_interlock() && interlock) {
             motors.set_interlock(true);

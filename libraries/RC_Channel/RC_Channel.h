@@ -5,6 +5,8 @@
 #include <AP_Common/AP_Common.h>
 #include <AP_Param/AP_Param.h>
 
+#include <../../ArduCopter/APM_Config.h>
+
 #define RC_CHANNEL_TYPE_ANGLE       0
 #define RC_CHANNEL_TYPE_RANGE       1
 #define RC_CHANNEL_TYPE_ANGLE_RAW   2
@@ -22,7 +24,7 @@ public:
     ///
     RC_Channel(uint8_t ch_out) :
         _high_in(1),
-        _ch_out(ch_out) 
+        _ch_out(ch_out)
     {
 		  AP_Param::setup_object_defaults(this, var_info);
         if (ch_out < RC_MAX_CHANNELS) {
@@ -60,7 +62,7 @@ public:
     bool        get_reverse(void) const;
     void        set_default_dead_zone(int16_t dzone);
     uint16_t    get_dead_zone(void) const { return _dead_zone; }
-    
+
     // get the channel number
     uint8_t     get_ch_out(void) const { return _ch_out; }
 
@@ -117,15 +119,15 @@ public:
 
     static RC_Channel *rc_channel(uint8_t i);
 
-    static RC_Channel **rc_channel_array(void) 
+    static RC_Channel **rc_channel_array(void)
     {
         return _rc_ch;
     }
-    
+
     bool       in_trim_dz();
 
     int16_t    get_radio_in() const { return _radio_in;}
-    void       set_radio_in(int16_t val){_radio_in = val;}
+    void       set_radio_in(int16_t val){ _radio_in = val;}     //没有调用
 
     int16_t    get_control_in() const { return _control_in;}
     void       set_control_in(int16_t val) { _control_in = val;}
@@ -150,22 +152,27 @@ public:
 
     // return output type RC_CHANNEL_TYPE_*
     uint8_t    get_type_out(void) const { return _type_out; }
-    
+
     // get the current radio_out value as a floating point number
     // normalised so that 1.0 is full output
     float      get_radio_out_normalised(uint16_t pwm) const;
-    
+
     bool min_max_configured()
     {
         return _radio_min.configured() && _radio_max.configured();
     }
-    
+
 private:
 
     // pwm is stored here
     int16_t     _radio_in;
+
+    //static int16_t  last_read;
+    //static int16_t  new_value;
+
     // value generated from PWM
     int16_t     _control_in;
+
     // current values to the servos - degrees * 100 (approx assuming servo is -45 to 45 degrees except [3] is 0 to 100
     int16_t     _servo_out;
     // PWM is without the offset from radio_min
@@ -186,6 +193,11 @@ private:
     int16_t     _low_out;
 
     static RC_Channel *_rc_ch[RC_MAX_CHANNELS];
+
+#ifdef	BRUSH_GIMBAL
+    static int16_t  _new_value;
+    static int16_t  _last_read;
+#endif
 
 protected:
     uint8_t     _ch_out;

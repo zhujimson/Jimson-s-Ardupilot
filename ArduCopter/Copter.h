@@ -145,6 +145,7 @@ public:
     void loop() override;
 
 private:
+
     // key aircraft parameters passed to multiple libraries
     AP_Vehicle::MultiCopter aparm;
 
@@ -290,7 +291,7 @@ private:
 
     // altitude below which we do no navigation in auto takeoff
     float auto_takeoff_no_nav_alt_cm;
-    
+
     RCMapper rcmap;
 
     // board specific config
@@ -551,8 +552,8 @@ private:
     AP_Rally_Copter rally;
 #endif
 
-    // RSSI 
-    AP_RSSI rssi;      
+    // RSSI
+    AP_RSSI rssi;
 
     // Crop Sprayer
 #if SPRAYER == ENABLED
@@ -602,7 +603,7 @@ private:
 
     // last valid RC input time
     uint32_t last_radio_update_ms;
-    
+
     // Top-level logic
     // setup the var_info table
     AP_Param param_loader;
@@ -989,6 +990,14 @@ private:
     bool pre_arm_ekf_attitude_check();
     bool pre_arm_terrain_check(bool display_failure);
     bool arm_checks(bool display_failure, bool arming_from_gcs);
+
+#ifdef NO_FLY_ZONE
+    bool no_fly_zone_checks(bool display_failure);
+#endif
+
+#ifdef ARM_STATE_CHECK
+    void arm_state_checks();
+#endif
     void init_disarm_motors();
     void motors_output();
     void lost_vehicle_check();

@@ -1,3 +1,5 @@
+#ifndef __APM_CONFIG_H__
+#define __APM_CONFIG_H__
 // User specific config file.  Any items listed in config.h can be overridden here.
 
 // If you used to define your CONFIG_APM_HARDWARE setting here, it is no longer
@@ -57,3 +59,62 @@
 //#define USERHOOK_MEDIUMLOOP userhook_MediumLoop();        // for code to be run at 10hz
 //#define USERHOOK_SLOWLOOP userhook_SlowLoop();            // for code to be run at 3.3hz
 //#define USERHOOK_SUPERSLOWLOOP userhook_SuperSlowLoop();  // for code to be run at 1hz
+
+//For BMSPOW smart battery
+#ifndef SMBUS_BMSPOW
+#define SMBUS_BMSPOW
+#endif
+
+//Flypie remote RC controller
+//#ifndef FLYPIE_RC
+//#define FLYPIE_RC
+//#endif
+
+//#ifndef NORMAL_ARM
+//#define NORMAL_ARM
+//#endif
+
+//ZhuJimson RC
+//#if FLYPIE_RC == DISABLED
+//#define ZHUJIMSON_RC  DISABLED
+//#endif
+
+//Setting No_Fly_ZONE
+//#define NO_FLY_ZONE
+
+//Sensors eliminate
+//#define SEOSORS_DOUBLE
+
+//Manual Land speed limit
+//#define MANUAL_LAND_SPEED_LIMIT
+
+//Barometer LowPassFilter
+#ifndef BARO_LP_FILTER
+#define BARO_LP_FILTER
+#endif
+
+//Brush Motor Gimbal
+#define BRUSH_GIMBAL
+
+//debug flag
+#ifndef DEBUG
+#define DEBUG
+#endif
+
+#ifndef LOG_PID_DEBUG
+#define LOG_PID_DEBUG
+#endif
+
+#ifndef DRIVER_MPU6500
+#define DRIVER_MPU6500
+#endif
+
+#ifndef DRIVER_IST8310
+#define DRIVER_IST8310
+#endif
+
+#ifndef ARM_STATE_CHECK
+#define ARM_STATE_CHECK
+#endif
+
+#endif

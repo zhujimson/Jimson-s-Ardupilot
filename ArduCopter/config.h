@@ -54,7 +54,7 @@
 # define MAIN_LOOP_MICROS  2500
 
 #ifndef ARMING_DELAY_SEC
-    # define ARMING_DELAY_SEC 2.0f
+    # define ARMING_DELAY_SEC 2.0f  //原来解锁到电机旋转的延迟时2S，现在改为0.5
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -383,14 +383,14 @@
  # define LAND_CANCEL_TRIGGER_THR   700     // land is cancelled by input throttle above 700
 #endif
 #ifndef LAND_RANGEFINDER_MIN_ALT_CM
-#define LAND_RANGEFINDER_MIN_ALT_CM 200
+#define LAND_RANGEFINDER_MIN_ALT_CM 200     // 默认是2m
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
 // Landing Detector
 //
 #ifndef LAND_DETECTOR_TRIGGER_SEC
- # define LAND_DETECTOR_TRIGGER_SEC         1.0f    // number of seconds to detect a landing
+ # define LAND_DETECTOR_TRIGGER_SEC         0.2f    // number of seconds to detect a landing    //默认是1，修改为0.2
 #endif
 #ifndef LAND_DETECTOR_MAYBE_TRIGGER_SEC
  # define LAND_DETECTOR_MAYBE_TRIGGER_SEC   0.2f    // number of seconds that means we might be landed (used to reset horizontal position targets to prevent tipping over)
@@ -399,7 +399,7 @@
 # define LAND_DETECTOR_ACCEL_LPF_CUTOFF     1.0f    // frequency cutoff of land detector accelerometer filter
 #endif
 #ifndef LAND_DETECTOR_ACCEL_MAX
-# define LAND_DETECTOR_ACCEL_MAX            1.0f    // vehicle acceleration must be under 1m/s/s
+# define LAND_DETECTOR_ACCEL_MAX            2.0f    // vehicle acceleration must be under 1m/s/s    //默认是1
 #endif
 
 //////////////////////////////////////////////////////////////////////////////
@@ -532,7 +532,7 @@
  # define BRAKE_MODE_SPEED_Z     250 // z-axis speed in cm/s in Brake Mode
 #endif
 #ifndef BRAKE_MODE_DECEL_RATE
- # define BRAKE_MODE_DECEL_RATE  750 // acceleration rate in cm/s/s in Brake Mode
+ # define BRAKE_MODE_DECEL_RATE  750 // acceleration rate in cm/s/s in Brake Mode   //原来加速度是750cm
 #endif
 
 //////////////////////////////////////////////////////////////////////////////

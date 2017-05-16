@@ -32,6 +32,10 @@
 #include "AP_Baro_qflight.h"
 #include "AP_Baro_QURT.h"
 
+#ifdef BARO_LP_FILTER
+const float BARO_LP = 0.45;
+#endif
+
 extern const AP_HAL::HAL& hal;
 
 // table of user settable parameters
@@ -359,11 +363,17 @@ void AP_Baro::update(void)
             if (is_zero(ground_pressure) || isnan(ground_pressure) || isinf(ground_pressure)) {
                 sensors[i].ground_pressure = sensors[i].pressure;
             }
-            float altitude = get_altitude_difference(sensors[i].ground_pressure, sensors[i].pressure);
+            float altitude = get_altitude_difference(sensors[i].ground_pressure, sensors[i].pressure);  // 根据气压差得到当前数据
             // sanity check altitude
-            sensors[i].alt_ok = !(isnan(altitude) || isinf(altitude));
+            sensors[i].alt_ok = !(isnan(altitude) || isinf(altitude));  //判断是不是一个数值，然后再判断是不是一个有限的数值
             if (sensors[i].alt_ok) {
-                sensors[i].altitude = altitude + _alt_offset_active;
+                sensors[i].altitude = altitude + _alt_offset_active;    //计算当前高度值
+
+                // 加入低通滤波
+#ifdef BARO_LP_FILTER
+               sensors[i].altitude = BARO_LP * sensors[i].altitude + (1.0f - BARO_LP) * sensors[i].last_altitude;
+               sensors[i].last_altitude = sensors[i].altitude;   //先记录上一次的值
+#endif
             }
         }
         if (_hil.have_alt) {
@@ -399,7 +409,7 @@ void AP_Baro::update(void)
 void AP_Baro::accumulate(void)
 {
     for (uint8_t i=0; i<_num_drivers; i++) {
-        drivers[i]->accumulate();
+        drivers[i]->accumulate();   //调用驱动根据气压值进行高度计算
     }
 }
 

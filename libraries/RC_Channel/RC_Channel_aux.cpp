@@ -76,7 +76,7 @@ RC_Channel_aux::output_ch_all(void)
         if (_aux_channels[i]) {
             _aux_channels[i]->output_ch();
         }
-    }    
+    }
 }
 
 /*
@@ -90,7 +90,7 @@ void RC_Channel_aux::disable_aux_channel(uint8_t channel)
         if (_aux_channels[i] && _aux_channels[i]->_ch_out == channel) {
             _aux_channels[i] = NULL;
         }
-    }    
+    }
 }
 
 /*
@@ -102,11 +102,11 @@ RC_Channel_aux::Aux_servo_function_t RC_Channel_aux::channel_function(uint8_t ch
         if (_aux_channels[i] && _aux_channels[i]->_ch_out == channel) {
             return (RC_Channel_aux::Aux_servo_function_t)_aux_channels[i]->function.get();
         }
-    }    
+    }
     return RC_Channel_aux::k_none;
 }
 
-/* 
+/*
    setup a channels aux servo function
 */
 void RC_Channel_aux::aux_servo_function_setup(void)
@@ -453,9 +453,11 @@ bool RC_Channel_aux::set_aux_channel_default(RC_Channel_aux::Aux_servo_function_
                 if (_aux_channels[i]->function == function) {
                     return true;
                 }
+                /*
                 hal.console->printf("Channel %u already assigned %u\n",
                                     (unsigned)channel,
                                     (unsigned)_aux_channels[i]->function);
+                */
                 return false;
             }
             _aux_channels[i]->function.set(function);
@@ -463,9 +465,9 @@ bool RC_Channel_aux::set_aux_channel_default(RC_Channel_aux::Aux_servo_function_
             return true;
         }
     }
-    hal.console->printf("AUX channel %u not available\n",
-                        (unsigned)channel);
-    return false;    
+    ////hal.console->printf("AUX channel %u not available\n",
+    ////                    (unsigned)channel);
+    return false;
 }
 
 // find first channel that a function is assigned to

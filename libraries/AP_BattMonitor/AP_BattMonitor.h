@@ -4,6 +4,9 @@
 #include <AP_Param/AP_Param.h>
 #include <AP_Math/AP_Math.h>
 
+#include <../../ArduCopter/APM_Config.h>
+#include <GCS_MAVLink/GCS_MAVLink.h>    //每节电池电压的总节数的宏定义需要
+
 // maximum number of battery monitors
 #define AP_BATT_MONITOR_MAX_INSTANCES       2
 
@@ -42,15 +45,27 @@ public:
         BattMonitor_TYPE_SMBUS                      = 5,
         BattMonitor_TYPE_BEBOP                      = 6
     };
+#ifdef SMBUS_BMSPOW
+    struct cells {
+        uint16_t cell[MAVLINK_MSG_BATTERY_STATUS_FIELD_VOLTAGES_LEN];
+    };
+#endif
 
     // The BattMonitor_State structure is filled in by the backend driver
     struct BattMonitor_State {
+#ifdef  SMBUS_BMSPOW
+        float       temperature;
+        cells       cell_voltage;       //定义一个电池的每节电压结构体
+        float       batt_cycle_count;   //定义电池循环周期
+        float       full_charge_mah;    //充满容量
+        float       remaining_mah;      //剩余容量
+#endif
+        float       current_total_mah;  // total current draw since start-up,上电后消耗的毫安值
         uint8_t     instance;           // the instance number of this monitor
         bool        healthy;            // battery monitor is communicating correctly
         bool        is_powering_off;    // true if the battery is about to power off
         float       voltage;            // voltage in volts
         float       current_amps;       // current in amperes
-        float       current_total_mah;  // total current draw since start-up
         uint32_t    last_time_micros;   // time when voltage and current was last read
         uint32_t    low_voltage_start_ms;  // time when voltage dropped below the minimum
     };
@@ -96,7 +111,7 @@ public:
     /// pack_capacity_mah - returns the capacity of the battery pack in mAh when the pack is full
     int32_t pack_capacity_mah(uint8_t instance) const;
     int32_t pack_capacity_mah() const { return pack_capacity_mah(AP_BATT_PRIMARY_INSTANCE); }
- 
+
     /// exhausted - returns true if the battery's voltage remains below the low_voltage for 10 seconds or remaining capacity falls below min_capacity
     bool exhausted(uint8_t instance, float low_voltage, float min_capacity_mah);
     bool exhausted(float low_voltage, float min_capacity_mah) { return exhausted(AP_BATT_PRIMARY_INSTANCE, low_voltage, min_capacity_mah); }
@@ -114,6 +129,28 @@ public:
     /// true when (voltage * current) > watt_max
     bool overpower_detected() const;
     bool overpower_detected(uint8_t instance) const;
+
+#ifdef  SMBUS_BMSPOW
+    // remaining_mah
+    float   get_remaining_mah(uint8_t instance) const;
+    float   get_remaining_mah() const { return get_remaining_mah(AP_BATT_PRIMARY_INSTANCE); };
+
+    // full charge capacity
+    float   get_full_charge_mah(uint8_t instance) const;
+    float   get_full_charge_mah() const { return get_full_charge_mah(AP_BATT_PRIMARY_INSTANCE); };
+
+    // Cycle Count
+    float   get_cycle_count(uint8_t instance) const;
+    float   get_cycle_count() const { return get_cycle_count(AP_BATT_PRIMARY_INSTANCE); };
+
+    // temperature
+    float   get_temperature(uint8_t instance) const;
+    float   get_temperature() const { return get_temperature(AP_BATT_PRIMARY_INSTANCE); };
+
+    //float*   get_cell_voltage() const { return get_cell_voltage(AP_BATT_PRIMARY_INSTANCE); };
+    const cells &    get_cell_voltage(const uint8_t instance) const;
+
+#endif
 
     static const struct AP_Param::GroupInfo var_info[];
 

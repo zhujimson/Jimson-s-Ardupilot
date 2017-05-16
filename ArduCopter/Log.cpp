@@ -306,7 +306,7 @@ struct PACKED log_Control_Tuning {
     int32_t  baro_alt;
     int16_t  desired_rangefinder_alt;
     int16_t  rangefinder_alt;
-    float    terr_alt;
+    float    terr_alt;      //地理高度，一般没有
     int16_t  target_climb_rate;
     int16_t  climb_rate;
 };
@@ -339,6 +339,11 @@ void Copter::Log_Write_Control_Tuning()
         climb_rate          : climb_rate
     };
     DataFlash.WriteBlock(&pkt, sizeof(pkt));
+    //hal.console->printf("\n\n in throttle in :%f",pkt.throttle_in);
+    //hal.console->printf("\n\n out throttle_out :%f",pkt.throttle_out);
+    //hal.console->printf("\n\n  target_climb_rate :%d",pkt.target_climb_rate);
+
+
 }
 
 struct PACKED log_Performance {
@@ -387,6 +392,13 @@ void Copter::Log_Write_Attitude()
     sitl.Log_Write_SIMSTATE(&DataFlash);
 #endif
     DataFlash.Log_Write_POS(ahrs);
+
+#ifdef LOG_PID_DEBUG
+    DataFlash.Log_Write_PID(LOG_PIDR_MSG, attitude_control.get_rate_roll_pid().get_pid_info());
+    DataFlash.Log_Write_PID(LOG_PIDP_MSG, attitude_control.get_rate_pitch_pid().get_pid_info());
+    DataFlash.Log_Write_PID(LOG_PIDY_MSG, attitude_control.get_rate_yaw_pid().get_pid_info());
+    DataFlash.Log_Write_PID(LOG_PIDA_MSG, g.pid_accel_z.get_pid_info() );
+#endif
 }
 
 struct PACKED log_MotBatt {
@@ -463,7 +475,7 @@ struct PACKED log_Data_UInt16t {
 };
 
 // Write an uint16_t data packet
-UNUSED_FUNCTION 
+UNUSED_FUNCTION
 void Copter::Log_Write_Data(uint8_t id, uint16_t value)
 {
     if (should_log(MASK_LOG_ANY)) {
@@ -808,30 +820,30 @@ const struct LogStructure Copter::log_structure[] = {
       "ATDE", "Qff",          "TimeUS,Angle,Rate" },
 #endif
     { LOG_PARAMTUNE_MSG, sizeof(log_ParameterTuning),
-      "PTUN", "QBfHHH",          "TimeUS,Param,TunVal,CtrlIn,TunLo,TunHi" },  
-    { LOG_OPTFLOW_MSG, sizeof(log_Optflow),       
+      "PTUN", "QBfHHH",          "TimeUS,Param,TunVal,CtrlIn,TunLo,TunHi" },
+    { LOG_OPTFLOW_MSG, sizeof(log_Optflow),
       "OF",   "QBffff",   "TimeUS,Qual,flowX,flowY,bodyX,bodyY" },
-    { LOG_NAV_TUNING_MSG, sizeof(log_Nav_Tuning),       
+    { LOG_NAV_TUNING_MSG, sizeof(log_Nav_Tuning),
       "NTUN", "Qffffffffff", "TimeUS,DPosX,DPosY,PosX,PosY,DVelX,DVelY,VelX,VelY,DAccX,DAccY" },
     { LOG_CONTROL_TUNING_MSG, sizeof(log_Control_Tuning),
       "CTUN", "Qffffffeccfhh", "TimeUS,ThI,ABst,ThO,ThH,DAlt,Alt,BAlt,DSAlt,SAlt,TAlt,DCRt,CRt" },
-    { LOG_PERFORMANCE_MSG, sizeof(log_Performance), 
+    { LOG_PERFORMANCE_MSG, sizeof(log_Performance),
       "PM",  "QHHIhBHI",    "TimeUS,NLon,NLoop,MaxT,PMT,I2CErr,INSErr,LogDrop" },
     { LOG_MOTBATT_MSG, sizeof(log_MotBatt),
       "MOTB", "Qffff",  "TimeUS,LiftMax,BatVolt,BatRes,ThLimit" },
-    { LOG_EVENT_MSG, sizeof(log_Event),         
+    { LOG_EVENT_MSG, sizeof(log_Event),
       "EV",   "QB",           "TimeUS,Id" },
-    { LOG_DATA_INT16_MSG, sizeof(log_Data_Int16t),         
+    { LOG_DATA_INT16_MSG, sizeof(log_Data_Int16t),
       "D16",   "QBh",         "TimeUS,Id,Value" },
-    { LOG_DATA_UINT16_MSG, sizeof(log_Data_UInt16t),         
+    { LOG_DATA_UINT16_MSG, sizeof(log_Data_UInt16t),
       "DU16",  "QBH",         "TimeUS,Id,Value" },
-    { LOG_DATA_INT32_MSG, sizeof(log_Data_Int32t),         
+    { LOG_DATA_INT32_MSG, sizeof(log_Data_Int32t),
       "D32",   "QBi",         "TimeUS,Id,Value" },
-    { LOG_DATA_UINT32_MSG, sizeof(log_Data_UInt32t),         
+    { LOG_DATA_UINT32_MSG, sizeof(log_Data_UInt32t),
       "DU32",  "QBI",         "TimeUS,Id,Value" },
-    { LOG_DATA_FLOAT_MSG, sizeof(log_Data_Float),         
+    { LOG_DATA_FLOAT_MSG, sizeof(log_Data_Float),
       "DFLT",  "QBf",         "TimeUS,Id,Value" },
-    { LOG_ERROR_MSG, sizeof(log_Error),         
+    { LOG_ERROR_MSG, sizeof(log_Error),
       "ERR",   "QBB",         "TimeUS,Subsys,ECode" },
     { LOG_HELI_MSG, sizeof(log_Heli),
       "HELI",  "Qff",         "TimeUS,DRRPM,ERRPM" },
@@ -872,7 +884,7 @@ void Copter::Log_Write_Vehicle_Startup_Messages()
 
 
 // start a new log
-void Copter::start_logging() 
+void Copter::start_logging()
 {
     if (g.log_bitmask != 0 && !in_log_download) {
         if (!ap.logging_started) {

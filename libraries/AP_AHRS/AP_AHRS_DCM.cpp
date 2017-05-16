@@ -46,6 +46,7 @@ AP_AHRS_DCM::reset_gyro_drift(void)
 }
 
 // run a full DCM update round
+// ardupilot·É¿ØµÄ»¥²¹ÂË²¨£¬¿ÉÒÔ²ÎÕÕMahonyµÄCFËã·¨·ÖÎö
 void
 AP_AHRS_DCM::update(void)
 {
@@ -58,7 +59,7 @@ AP_AHRS_DCM::update(void)
     // tell the IMU to grab some data
     _ins.update();
 
-    // ask the IMU how much time this sensor reading represents
+    // ask the IMU how much time this sensor reading represents  È·¶¨²ÉÑùÖÜÆÚ
     delta_t = _ins.get_delta_time();
 
     // if the update call took more than 0.2 seconds then discard it,
@@ -70,22 +71,35 @@ AP_AHRS_DCM::update(void)
         return;
     }
 
-    // Integrate the DCM matrix using gyro inputs
-    matrix_update(delta_t);
+    /****** Integrate the DCM matrix using gyro inputs
+    Ê¹ÓÃÍÓÂİÒÇÊı¾İ¸üĞÂDCM¾ØÕó£¨·½ÏòÓàÏÒ¾ØÕó£ºdirection-cosine-matrix £©
+    £¬Ê¹ÓÃ¸Õ¸Õ²âÁ¿³öÀ´µÄÍÓÂİÒÇÖµ¡¢ÒÔ¼°ÉÏ¸öÖÜÆÚ¶ÔÍÓÂİÒÇµÄ²¹³¥Öµ½øĞĞ½Ç¶È¸üĞÂ
+    Õâ¸öº¯ÊıÒ»²¿·ÖÊÇ°ÑÉÏÖÜÆÚdrift_correctionº¯ÊıÇóµÃµÄPÏîºÍIÏîÍ¨¹ırotateº¯Êıµş¼Ó
+    */
+    matrix_update(delta_t);     //½áºÏÍÓÂİÒÇÀ´ÏÈ¸üĞÂÒ»¸ö´óµØ×ø±êÏµÏÂµÄDCM
 
     // Normalize the DCM matrix
-    normalize();
+    normalize();                //¹éÒ»»¯´¦Àí£¬Ç¿ÖÆÕı½»»¯
+
+
 
     // Perform drift correction
+    // »ñÈ¡¼ÓËÙ¼ÆÔ­Ê¼Êı¾İ(0,0,-1)£¬½øĞĞ¼ÓËÙ¼ÆÊı¾İ¹éÒ»»¯
+    // ÓÃÍÓÂİÒÇ»ı·ÖµÃµ½µÄ×ËÌ¬¾ØÕóµÃµ½µÄÖØÁ¦ÏòÁ¿Í¶Ó°Óë¼ÓËÙ¼ÆµÄÖµ²æ³ËÇóerror.
+    // ÒÔ¼°¸ù¾İerrorÇó³ö»¥²¹ÂË²¨ÖĞµÄPÏîºÍIÏî×÷
+    // Îª²¹³¥ÖµÔÚÏÂÒ»¸öÖÜÆÚµÄmatrix_updateº¯ÊıÀïÃæ½øĞĞ×ËÌ¬¾ØÕó¸üĞÂ
     drift_correction(delta_t);
 
     // paranoid check for bad values in the DCM matrix
+    // Í¨¹ıÅĞ¶ÏpitchµÄ½Ç¶È(via ascsin)À´check¾ØÕóÓĞÃ»ÓĞ»µÖµ
     check_matrix();
 
     // Calculate pitch, roll, yaw for stabilization and navigation
+    // ÔÙ°ÑDCM×ª»»ÎªÅ·À­½Ç(À´×¼±¸¸øµ½¿ØÖÆ»·)
     euler_angles();
 
     // update trig values including _cos_roll, cos_pitch
+    // ?
     update_trig();
 }
 
@@ -104,6 +118,7 @@ AP_AHRS_DCM::matrix_update(float _G_Dt)
     // systems with more than one gyro. We don't use the 3rd gyro
     // unless another is unhealthy as 3rd gyro on PH2 has a lot more
     // noise
+    // Ê×ÏÈ¾ÍÊÇÍ¨¹ıÍÓÂİÒÇ»ñÈ¡Á½´Îgyro_vector£¬È»ºóÈ¡Æ½¾ùÒÔ½µµÍÎó²î
     uint8_t healthy_count = 0;
     Vector3f delta_angle;
     for (uint8_t i=0; i<_ins.get_gyro_count(); i++) {
@@ -116,12 +131,16 @@ AP_AHRS_DCM::matrix_update(float _G_Dt)
         }
     }
     if (healthy_count > 1) {
-        delta_angle /= healthy_count;
+        delta_angle /= healthy_count;   //»ñÈ¡½Ç¶È±ä»¯Á¿
     }
     if (_G_Dt > 0) {
         _omega = delta_angle / _G_Dt;
         _omega += _omega_I;
         _dcm_matrix.rotate((_omega + _omega_P + _omega_yaw_P) * _G_Dt);
+        // ÕâÀïÍÓÂİÒÇµÄÊä³öÖµ½áºÏÁËÉÏÒ»ÖÜÆÚµÄPIĞ£ÕıÁ¿ºóÓëDCM¾ØÕóµÄ³Ë»ıÔÙ¼Ó»Øµ½DCMÖĞÈ¥£¬´¦Àí¹ı³ÌÖĞÊ¹ÓÃÁËÀëÉ¢»¯µÄ¸ÅÄî£¬
+        // ¼´dcm£¨k+1£©=dcm£¨k£©+ÔöÁ¿£¬ÒòÎª¹«Ê½ÀïÓĞÇóµ¼£¬±ØĞëÀëÉ¢»¯ºó²ÅÄÜ¼ÆËã»ú´¦Àí
+        // ÕâÀïÓ¦¸ÃÊÇÒ»¿ªÊ¼°ÑPIµÄµ÷½ÚÆ÷µÄ±ÈÀıµ÷µÃºÜ´ó¾¡¿ìÈÃ×ËÌ¬ÔÚ³õÆÚ¿¿½ü¼ÓËÙ¼ÆµÄÖµ£¬´Ó¶øµÃµ½×î³õµÄDCM¡£
+
     }
 }
 
@@ -241,6 +260,9 @@ AP_AHRS_DCM::renorm(Vector3f const &a, Vector3f &result)
     // we don't want to compound the error by making DCM less
     // accurate.
 
+
+    //Õ¹¿ªÎª3¼õÈ¥ÏòÁ¿Ä£µÄÆ½·½£¬³ËÒÔ1/2£¬ÔÙ³ËÒÔÕâ¸öÏòÁ¿£¬Ã»ÓĞÓÃÌ©ÀÕÕ¹¿ª·½·¨¡£
+
     renorm_val = 1.0f / a.length();
 
     // keep the average for reporting
@@ -274,18 +296,23 @@ AP_AHRS_DCM::renorm(Vector3f const &a, Vector3f &result)
  *  simple matter to stay ahead of it.
  *  We call the process of enforcing the orthogonality conditions ÒrenormalizationÓ.
  */
+  //ÕâÀï¾ÍÊÇÓÃÁËWilliam PremerlaniµÄ¹éÒ»»¯·½·¨
 void
 AP_AHRS_DCM::normalize(void)
 {
     float error;
     Vector3f t0, t1, t2;
 
-    error = _dcm_matrix.a * _dcm_matrix.b;                                              // eq.18
+    error = _dcm_matrix.a * _dcm_matrix.b;                        // eq.18
 
-    t0 = _dcm_matrix.a - (_dcm_matrix.b * (0.5f * error));              // eq.19
-    t1 = _dcm_matrix.b - (_dcm_matrix.a * (0.5f * error));              // eq.19
-    t2 = t0 % t1;                                                       // c= a x b // eq.20
+    t0 = _dcm_matrix.a - (_dcm_matrix.b * (0.5f * error));        // eq.19,Êµ¼ÊÉÏ¾ÍÊÇrx
+    //Xorthogonal = X - Y(0.5error)
+    t1 = _dcm_matrix.b - (_dcm_matrix.a * (0.5f * error));        // eq.19,Êµ¼ÊÉÏ¾ÍÊÇry
+    //Yorthogonal = Y - X(0.5error)
+    t2 = t0 % t1;                                                 // c= a x b // eq.20
+    //Zorthogonal = Xorthogonal x Yorthogonal.  Êµ¼ÊÉÏ¾ÍÊÇrz
 
+    //ÏÂÃæÕâÀïµÄÅĞ¶ÏÆäÊµ¾ÍÊÇÈÃĞı×ª¾ØÕóµÄÃ¿Ò»ĞĞµÄ´óĞ¡¶¼µÄµÈÓÚ1
     if (!renorm(t0, _dcm_matrix.a) ||
             !renorm(t1, _dcm_matrix.b) ||
             !renorm(t2, _dcm_matrix.c)) {
@@ -576,6 +603,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
     drift_correction_yaw();
 
     // rotate accelerometer values into the earth frame
+    // °Ñ¼ÓËÙ¶È¼ÆµÄÖµ×ª»¯µ½µØÇò×ø±êÏµ
     for (uint8_t i=0; i<_ins.get_accel_count(); i++) {
         if (_ins.get_accel_health(i)) {
             /*
@@ -590,12 +618,14 @@ AP_AHRS_DCM::drift_correction(float deltat)
             if (delta_velocity_dt > 0) {
                 _accel_ef[i] = _dcm_matrix * (delta_velocity / delta_velocity_dt);
                 // integrate the accel vector in the earth frame between GPS readings
+                // »ı·Ö¼ÓËÙ¶ÈµØÇò×ø±êÏµ¼ÆÏòÁ¿
                 _ra_sum[i] += _accel_ef[i] * deltat;
             }
         }
     }
 
     //update _accel_ef_blended
+    // ¸üĞÂ¼ÓËÙ¶È¼ÆµØÇò×ø±êÏµµÄÈıÖá¼ÓËÙ¶ÈÖµ
     if (_ins.get_accel_count() == 2 && _ins.use_accel(0) && _ins.use_accel(1)) {
         float imu1_weight_target = _active_accel_instance == 0 ? 1.0f : 0.0f;
         // slew _imu1_weight over one second
@@ -607,9 +637,11 @@ AP_AHRS_DCM::drift_correction(float deltat)
 
     // keep a sum of the deltat values, so we know how much time
     // we have integrated over
+    // ±£³Ö»ı·ÖÊ±¼äµÄ»ñÈ¡
     _ra_deltat += deltat;
 
     if (!have_gps() ||
+       // Èç¹ûÃ»ÓĞGPS
             _gps.status() < AP_GPS::GPS_OK_FIX_3D ||
             _gps.num_sats() < _gps_minsats) {
         // no GPS, or not a good lock. From experience we need at
@@ -659,6 +691,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
     }
 
     if (have_gps()) {
+        // Èç¹ûÓĞGPS
         // use GPS for positioning with any fix, even a 2D fix
         _last_lat = _gps.location().lat;
         _last_lng = _gps.location().lng;
@@ -685,13 +718,13 @@ AP_AHRS_DCM::drift_correction(float deltat)
     // equation 9: get the corrected acceleration vector in earth frame. Units
     // are m/s/s
     Vector3f GA_e;
-    GA_e = Vector3f(0, 0, -1.0f);
+    GA_e = Vector3f(0, 0, -1.0f);   // ¶àÌ¬ÊµÏÖ¼ÓËÙ¼ÆÏòÁ¿µÄ³õÊ¼»¯Öµ0,0,-1£¬ZÖáÏòÏÂ
 
     if (_ra_deltat <= 0) {
         // waiting for more data
         return;
     }
-    
+
     bool using_gps_corrections = false;
     float ra_scale = 1.0f/(_ra_deltat*GRAVITY_MSS);
 
@@ -699,7 +732,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
         float v_scale = gps_gain.get() * ra_scale;
         Vector3f vdelta = (velocity - _last_velocity) * v_scale;
         GA_e += vdelta;
-        GA_e.normalize();
+        GA_e.normalize();   //¼ÓËÙ¶È¼ÆÊı¾İ¹éÒ»»¯
         if (GA_e.is_inf()) {
             // wait for some non-zero acceleration information
             _last_failure_ms = AP_HAL::millis();
@@ -744,7 +777,8 @@ AP_AHRS_DCM::drift_correction(float deltat)
             // wait for some non-zero acceleration information
             continue;
         }
-        error[i] = GA_b[i] % GA_e;
+        error[i] = GA_b[i] % GA_e;      // ÓÃÍÓÂİÒÇ»ı·ÖµÃµ½µÄ×ËÌ¬¾ØÕóµÃµ½
+                                        // µÄÖØÁ¦ÏòÁ¿Í¶Ó°Óë¼ÓËÙ¼ÆµÄÖµ²æ³ËÇóerror.
         // Take dot product to catch case vectors are opposite sign and parallel
         error_dirn[i] = GA_b[i] * GA_e;
         float error_length = error[i].length();
@@ -770,6 +804,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
 #define YAW_INDEPENDENT_DRIFT_CORRECTION 0
 #if YAW_INDEPENDENT_DRIFT_CORRECTION
     // step 2 calculate earth_error_Z
+    // ¼ÆËã³öZÖáµÄÆ«²îÁ¿À´µ¥¶À¸øĞ£Õı
     float earth_error_Z = error.z;
 
     // equation 10
@@ -782,7 +817,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
     Vector3f GA_e2 = Vector3f(cosf(theta)*tilt, sinf(theta)*tilt, GA_e.z);
 
     // step 6
-    error = GA_b[besti] % GA_e2;
+    error = GA_b[besti] % GA_e2;    // ÕâÀï½øĞĞ²æ³Ë
     error.z = earth_error_Z;
 #endif // YAW_INDEPENDENT_DRIFT_CORRECTION
 
@@ -825,6 +860,7 @@ AP_AHRS_DCM::drift_correction(float deltat)
         _kp = AP_AHRS_RP_P_MIN;
     }
 
+    //Çó³öPI¿ØÖÆµÄPÏîºÍIÏî
     // we now want to calculate _omega_P and _omega_I. The
     // _omega_P value is what drags us quickly to the
     // accelerometer reading.
@@ -871,6 +907,9 @@ AP_AHRS_DCM::drift_correction(float deltat)
     // remember the velocity for next time
     _last_velocity = velocity;
 }
+
+
+
 
 
 // update our wind speed estimate
