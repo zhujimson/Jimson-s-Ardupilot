@@ -16,3 +16,6 @@
 [submodule "gtest"]
 	path = modules/gtest
 	url = git://github.com/ArduPilot/googletest
+[submodule "modules/PX4Firmware"]
+	path = modules/PX4Firmware
+	url = https://github.com/zhujimson/Jimson-s-PX4Firmware.git
